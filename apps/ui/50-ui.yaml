@@ -1,8 +1,6 @@
 # =========================================================
-# UI Service (TEMPORARY - for integration testing only)
-# Final UI will be hosted outside Kubernetes
+# UI Service (External Access)
 # =========================================================
-
 apiVersion: v1
 kind: Service
 metadata:
@@ -11,14 +9,17 @@ metadata:
   labels:
     app: ui
 spec:
+  type: LoadBalancer
   selector:
     app: ui
   ports:
     - name: http
-      port: 8080
+      port: 80
       targetPort: 8080
-  type: LoadBalancer   # TEMP ONLY
 ---
+# =========================================================
+# UI Deployment
+# =========================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -38,29 +39,30 @@ spec:
     spec:
       containers:
         - name: ui
-
-          # GCP Artifact Registry (immutable)
           image: us-central1-docker.pkg.dev/solid-study-480405-c3/retail-shop/ui:a785cf0
-
           ports:
             - containerPort: 8080
 
           env:
-            - name: JAVA_OPTS
-              value: "-XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/urandom"
-            - name: SERVER_TOMCAT_ACCESSLOG_ENABLED
-              value: "true"
+            - name: CATALOG_SERVICE_URL
+              value: http://catalog:8080
+            - name: CART_SERVICE_URL
+              value: http://cart:8080
+            - name: CHECKOUT_SERVICE_URL
+              value: http://checkout:8080
+            - name: ORDERS_SERVICE_URL
+              value: http://orders:8080
 
           readinessProbe:
             httpGet:
-              path: /actuator/health
+              path: /
               port: 8080
-            initialDelaySeconds: 15
+            initialDelaySeconds: 10
             periodSeconds: 5
 
           livenessProbe:
             httpGet:
-              path: /actuator/health
+              path: /
               port: 8080
-            initialDelaySeconds: 30
+            initialDelaySeconds: 20
             periodSeconds: 10
