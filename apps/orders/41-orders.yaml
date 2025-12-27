@@ -1,5 +1,5 @@
 # =========================================================
-# Orders Service (Internal)
+# Orders Service
 # =========================================================
 apiVersion: v1
 kind: Service
@@ -9,7 +9,6 @@ metadata:
   labels:
     app: orders
 spec:
-  type: ClusterIP
   selector:
     app: orders
   ports:
@@ -17,9 +16,6 @@ spec:
       port: 8080
       targetPort: 8080
 ---
-# =========================================================
-# Orders Deployment
-# =========================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -44,12 +40,6 @@ spec:
       initContainers:
         - name: wait-for-postgres
           image: postgres:16.1
-          env:
-            - name: PGPASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: app-secrets
-                  key: POSTGRES_PASSWORD
           command:
             - sh
             - -c
@@ -58,6 +48,12 @@ spec:
                 echo "Waiting for Postgres...";
                 sleep 3;
               done
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
 
         - name: wait-for-rabbitmq
           image: busybox:1.36
@@ -71,7 +67,7 @@ spec:
               done
 
       # -----------------------------
-      # Orders Container
+      # Main Container
       # -----------------------------
       containers:
         - name: orders
@@ -85,7 +81,7 @@ spec:
               value: "true"
 
             # -----------------------------
-            # Database Configuration
+            # Postgres Configuration
             # -----------------------------
             - name: RETAIL_ORDERS_PERSISTENCE_PROVIDER
               value: postgres
@@ -94,17 +90,17 @@ spec:
             - name: RETAIL_ORDERS_PERSISTENCE_NAME
               valueFrom:
                 secretKeyRef:
-                  name: app-secrets
+                  name: postgres-secret
                   key: POSTGRES_DB
             - name: RETAIL_ORDERS_PERSISTENCE_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: app-secrets
+                  name: postgres-secret
                   key: POSTGRES_USER
             - name: RETAIL_ORDERS_PERSISTENCE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: app-secrets
+                  name: postgres-secret
                   key: POSTGRES_PASSWORD
 
             # -----------------------------
@@ -117,17 +113,14 @@ spec:
             - name: RETAIL_ORDERS_MESSAGING_RABBITMQ_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: app-secrets
+                  name: rabbitmq-secret
                   key: RABBITMQ_DEFAULT_USER
             - name: RETAIL_ORDERS_MESSAGING_RABBITMQ_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: app-secrets
+                  name: rabbitmq-secret
                   key: RABBITMQ_DEFAULT_PASS
 
-          # -----------------------------
-          # Health Probes
-          # -----------------------------
           readinessProbe:
             httpGet:
               path: /actuator/health
