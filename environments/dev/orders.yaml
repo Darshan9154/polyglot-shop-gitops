@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: orders
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:Darshan9154/polyglot-shop-gitops.git
+    targetRevision: main
+    path: apps/orders
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: retail-store
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
