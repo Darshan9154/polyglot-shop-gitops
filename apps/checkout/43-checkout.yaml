@@ -1,0 +1,88 @@
+# =========================================================
+# Checkout Service
+# Stateless service using Redis for persistence
+# =========================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: checkout
+  namespace: retail-store
+  labels:
+    app: checkout
+spec:
+  # Internal service only
+  selector:
+    app: checkout
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: checkout
+  namespace: retail-store
+  labels:
+    app: checkout
+spec:
+  replicas: 1   # Can be scaled later
+  selector:
+    matchLabels:
+      app: checkout
+  template:
+    metadata:
+      labels:
+        app: checkout
+    spec:
+
+      # -----------------------------
+      # Init container: wait for Redis
+      # -----------------------------
+      initContainers:
+        - name: wait-for-redis
+          image: redis:6.0-alpine
+          command:
+            - sh
+            - -c
+            - |
+              until redis-cli -h checkout-redis ping; do
+                echo "Waiting for Redis...";
+                sleep 3;
+              done
+
+      containers:
+        - name: checkout
+
+          # Artifact Registry image with immutable tag
+          image: us-central1-docker.pkg.dev/solid-study-480405-c3/retail-shop/checkout:a785cf0
+
+          ports:
+            - containerPort: 8080
+
+          env:
+            # -----------------------------
+            # Redis configuration
+            # -----------------------------
+            - name: RETAIL_CHECKOUT_PERSISTENCE_PROVIDER
+              value: redis
+            - name: RETAIL_CHECKOUT_PERSISTENCE_REDIS_URL
+              value: redis://checkout-redis:6379
+
+          # -----------------------------
+          # Health probes
+          # -----------------------------
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10

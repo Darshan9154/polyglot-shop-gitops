@@ -1,0 +1,108 @@
+# -----------------------------
+# Service for MariaDB (Catalog DB)
+# -----------------------------
+# Provides a stable DNS name:
+# catalog-db.retail-store.svc.cluster.local
+# Catalog service will connect using this name
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-db
+  namespace: retail-store
+  labels:
+    app: catalog-db
+spec:
+  # Normal ClusterIP service
+  # MariaDB is accessed internally by backend services
+  selector:
+    app: catalog-db
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: 3306
+---
+# -----------------------------
+# StatefulSet for MariaDB
+# -----------------------------
+# StatefulSet is required because:
+# - MariaDB stores persistent data
+# - Data must survive Pod restarts
+# - Each Pod has a stable identity
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: catalog-db
+  namespace: retail-store
+spec:
+  serviceName: catalog-db
+  replicas: 1   # Single DB instance for dev/interview lab
+  selector:
+    matchLabels:
+      app: catalog-db
+  template:
+    metadata:
+      labels:
+        app: catalog-db
+    spec:
+      containers:
+        - name: mariadb
+          # Official MariaDB image, pinned version
+          image: mariadb:10.9
+
+          ports:
+            - containerPort: 3306
+
+          # Load database credentials from Kubernetes Secret
+          # (MYSQL_ROOT_PASSWORD, MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD)
+          envFrom:
+            - secretRef:
+                name: mariadb-secret
+
+          # Mount persistent storage into MariaDB data directory
+          volumeMounts:
+            - name: mariadb-data
+              mountPath: /var/lib/mysql
+
+          # Liveness probe:
+          # Checks whether MariaDB process is alive
+          # If this fails repeatedly, Kubernetes restarts the container
+          livenessProbe:
+            exec:
+              command:
+                - bash
+                - -lc
+                - mysqladmin ping -uroot -p$MYSQL_ROOT_PASSWORD
+            initialDelaySeconds: 20
+            periodSeconds: 10
+
+          # Readiness probe:
+          # Checks whether MariaDB is ready to accept connections
+          # If this fails, traffic is stopped (but container is NOT restarted)
+          readinessProbe:
+            exec:
+              command:
+                - bash
+                - -lc
+                - mysqladmin ping -uroot -p$MYSQL_ROOT_PASSWORD
+            initialDelaySeconds: 10
+            periodSeconds: 5
+
+  # -----------------------------
+  # Persistent storage for MariaDB
+  # -----------------------------
+  # This dynamically provisions a REAL GCP Persistent Disk
+  volumeClaimTemplates:
+    - metadata:
+        name: mariadb-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+
+        # IMPORTANT:
+        # gp2 is AWS-only (WRONG for GKE)
+        # standard is correct for GKE
+        storageClassName: standard
+
+        resources:
+          requests:
+            storage: 5Gi

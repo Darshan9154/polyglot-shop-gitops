@@ -1,0 +1,91 @@
+# -----------------------------
+# Service for Redis
+# -----------------------------
+# Provides stable DNS:
+# checkout-redis.retail-store.svc.cluster.local
+apiVersion: v1
+kind: Service
+metadata:
+  name: checkout-redis
+  namespace: retail-store
+  labels:
+    app: checkout-redis
+spec:
+  selector:
+    app: checkout-redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+---
+# -----------------------------
+# StatefulSet for Redis
+# -----------------------------
+# Redis is stateful when persistence is enabled (AOF)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: checkout-redis
+  namespace: retail-store
+spec:
+  serviceName: checkout-redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: checkout-redis
+  template:
+    metadata:
+      labels:
+        app: checkout-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:6.0-alpine
+
+          # Enable append-only persistence
+          args:
+            - "--appendonly"
+            - "yes"
+
+          ports:
+            - containerPort: 6379
+
+          # Liveness probe ensures Redis process is alive
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+          # Readiness probe ensures Redis is ready for traffic
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+          # Mount persistent storage for Redis data
+          volumeMounts:
+            - name: data
+              mountPath: /data
+
+  # -----------------------------
+  # Persistent storage for Redis
+  # -----------------------------
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+
+        # Correct GKE storage class
+        storageClassName: standard
+
+        resources:
+          requests:
+            storage: 2Gi
