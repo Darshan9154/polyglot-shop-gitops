@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: git@github.com:Darshan9154/polyglot-shop-gitops.git
+    repoURL: https://github.com/Darshan9154/polyglot-shop-gitops.git
     targetRevision: main
     path: apps/checkout
   destination:
