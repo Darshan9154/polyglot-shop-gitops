@@ -1,0 +1,33 @@
+# ------------------------------------------------------------
+# Retail Store – Infrastructure Messaging (GitOps Managed)
+# ------------------------------------------------------------
+# This Argo CD Application manages messaging infrastructure:
+#
+# - RabbitMQ (Orders service dependency)
+#
+# IMPORTANT:
+# - Sync Wave 0 ensures messaging infra deploys AFTER secrets
+# - Messaging must be ready BEFORE application workloads
+# ------------------------------------------------------------
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: infra-messaging
+  namespace: argocd
+  annotations:
+    # Deploy messaging after secrets (wave -1)
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Darshan9154/polyglot-shop-gitops
+    targetRevision: main
+    path: infra/messaging
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: retail-store
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
